@@ -17,6 +17,7 @@ Supported platforms:
 * Solaris
 * BSD (but cannot check)
 * Android (experimental)
+* iOS (experimental)
 
 Not supported platforms:
 * Other UNIX platforms
@@ -97,6 +98,11 @@ Note: You must use GNU make to build vimproc.
 
 You can install the dll using |VimProcInstall|. If you are having any trouble
 or want to build manually then read on.
+
+### iOS 
+
+    $ sh ./get_frameworks.sh
+    $ sh ./ios_compile
 
 ### Linux
 
