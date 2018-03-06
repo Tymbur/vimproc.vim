@@ -104,6 +104,8 @@ or want to build manually then read on.
     $ sh ./get_frameworks.sh
     $ sh ./ios_compile
 
+Then add `vimproc_ios.dylib` to the Embedded Binaries of iVim. 
+
 ### Linux
 
     $ make
