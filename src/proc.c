@@ -81,6 +81,8 @@
 #if defined __ANDROID__
 # define ctermid(x) "/dev/tty"
 #endif
+#include "TargetConditionals.h" 
+#include "ios_error.h"
 
 #include "vimstack.c"
 
@@ -551,10 +553,10 @@ vp_pipe_open(char *args)
         }
     }
 
-    pid = fork();
+    pid = 1; // fork();
     if (pid < 0) {
         VP_GOTO_ERROR("fork() error: %s");
-    } else if (pid == 0) {
+    } else if (pid == 1) {
         /* child */
         char **argv;
         int i;
@@ -562,6 +564,7 @@ vp_pipe_open(char *args)
         /* Set process group. */
         setpgid(0, 0);
 
+#ifndef TARGET_OS_IPHONE
         if (fd[0][1] > 0) {
             close(fd[0][1]);
         }
@@ -571,29 +574,35 @@ vp_pipe_open(char *args)
         if (fd[2][0] > 0) {
             close(fd[2][0]);
         }
+#endif
         if (fd[0][0] > 0) {
             if (dup2(fd[0][0], STDIN_FILENO) != STDIN_FILENO) {
                 goto child_error;
             }
+#ifndef TARGET_OS_IPHONE 
             close(fd[0][0]);
+#endif
         }
         if (fd[1][1] > 0) {
             if (dup2(fd[1][1], STDOUT_FILENO) != STDOUT_FILENO) {
                 goto child_error;
             }
-            close(fd[1][1]);
+#ifndef TARGET_OS_IPHONE 
+             close(fd[1][1]);
+#endif
         }
         if (fd[2][1] > 0) {
             if (dup2(fd[2][1], STDERR_FILENO) != STDERR_FILENO) {
                 goto child_error;
             }
+#ifndef TARGET_OS_IPHONE 
             close(fd[2][1]);
+#endif
         } else if (npipe == 2) {
             if (dup2(STDOUT_FILENO, STDERR_FILENO) != STDERR_FILENO) {
                 goto child_error;
             }
         }
-
         {
 #ifndef TIOCNOTTY
             setsid();
@@ -624,8 +633,10 @@ vp_pipe_open(char *args)
 
         execv(argv[0], argv);
         /* error */
-        goto child_error;
-    } else {
+        // goto child_error;
+    } // else 
+    {
+#ifndef TARGET_OS_IPHONE 
         /* parent */
         if (fd[0][0] > 0) {
             close(fd[0][0]);
@@ -636,7 +647,7 @@ vp_pipe_open(char *args)
         if (fd[2][1] > 0) {
             close(fd[2][1]);
         }
-
+#endif
         vp_stack_push_num(&_result, "%d", pid);
         vp_stack_push_num(&_result, "%d", fd[0][1]);
         vp_stack_push_num(&_result, "%d", fd[1][0]);
@@ -888,6 +899,10 @@ vp_kill(char *args)
     VP_RETURN_IF_FAIL(vp_stack_pop_num(&stack, "%d", &pid));
     VP_RETURN_IF_FAIL(vp_stack_pop_num(&stack, "%d", &sig));
 
+#ifdef TARGET_OS_IPHONE
+    ios_kill(); 
+    ret = 0;
+#else
     ret = kill(pid, sig);
     if (ret < 0)
         return vp_stack_return_error(&_result, "kill() error: %s",
@@ -900,7 +915,7 @@ vp_kill(char *args)
             kill(-pgid, sig);
         }
     }
-
+#endif
     vp_stack_push_num(&_result, "%d", ret);
     return vp_stack_return(&_result);
 }
