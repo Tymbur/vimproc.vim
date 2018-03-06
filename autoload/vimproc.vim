@@ -62,7 +62,9 @@ if vimproc#util#is_windows()
 elseif vimproc#util#is_cygwin()
   let s:vimproc_dll_basename = 'vimproc_cygwin.dll'
 elseif vimproc#util#is_mac()
-  let s:vimproc_dll_basename = 'vimproc_mac.so'
+  let s:vimproc_dll_basename = 'vimproc_ios.dylib'
+elseif vimproc#util#is_ios()
+let s:vimproc_dll_basename = 'vimproc_ios.dylib'
 elseif glob('/lib*/ld-linux*64.so.2',1) != ''
   let s:vimproc_dll_basename = 'vimproc_linux64.so'
 elseif glob('/lib*/ld-linux*.so.2',1) != ''
@@ -78,7 +80,7 @@ endif
 
 call vimproc#util#set_default(
       \ 'g:vimproc#dll_path',
-      \ expand('<sfile>:p:h:h') . '/lib/' . s:vimproc_dll_basename,
+      \ expand('<sfile>:p:h:h') . '/../Frameworks/' . s:vimproc_dll_basename,
       \ 'g:vimproc_dll_path')
 unlet s:vimproc_dll_basename
 
@@ -523,7 +525,7 @@ function! s:plineopen(npipe, commands, is_pty) abort "{{{
   let hstdin = (empty(a:commands) || a:commands[0].fd.stdin == '')?
         \ 0 : vimproc#fopen(a:commands[0].fd.stdin, 'r').fd
 
-  let is_pty = !vimproc#util#is_windows() && a:is_pty
+  let is_pty = !vimproc#util#is_windows() &&  !vimproc#util#is_ios() && a:is_pty
 
   let cnt = 0
   for command in a:commands
@@ -646,7 +648,8 @@ function! s:is_null_device(filename) abort
 endfunction
 
 function! s:is_pseudo_device(filename) abort "{{{
-  if vimproc#util#is_windows() && (
+  if vimproc#util#is_windows() &&
+    \ vimproc#util#is_ios() && (
     \    a:filename ==# '/dev/stdin'
     \ || a:filename ==# '/dev/stdout'
     \ || a:filename ==# '/dev/stderr')
@@ -1128,12 +1131,16 @@ function! s:convert_args(args) abort "{{{
   endif
 
   let command_name = vimproc#get_command_name(a:args[0])
-
   return map(vimproc#analyze_shebang(command_name), 'vimproc#util#iconv(
-        \ v:val, &encoding, vimproc#util#systemencoding())') + args[1:]
+  \ v:val, &encoding, vimproc#util#systemencoding())') + args[1:]
+
 endfunction"}}}
 
 function! vimproc#analyze_shebang(filename) abort "{{{
+
+  if vimproc#util#is_ios()
+    return [a:filename]  " no shebang in iOS_system
+
   if !filereadable(a:filename) ||
         \ getfsize(a:filename) > 100000 ||
         \ (vimproc#util#is_windows() &&
