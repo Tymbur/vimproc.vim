@@ -62,7 +62,7 @@ if vimproc#util#is_windows()
 elseif vimproc#util#is_cygwin()
   let s:vimproc_dll_basename = 'vimproc_cygwin.dll'
 elseif vimproc#util#is_mac()
-  let s:vimproc_dll_basename = 'vimproc_ios.dylib'
+  let s:vimproc_dll_basename = 'vimproc.dylib'
 elseif vimproc#util#is_ios()
 let s:vimproc_dll_basename = 'vimproc_ios.dylib'
 elseif glob('/lib*/ld-linux*64.so.2',1) != ''
@@ -78,10 +78,17 @@ else
 endif
 "}}}
 
-call vimproc#util#set_default(
-      \ 'g:vimproc#dll_path',
-      \ expand('<sfile>:p:h:h') . '/../Frameworks/' . s:vimproc_dll_basename,
-      \ 'g:vimproc_dll_path')
+if vimproc#util#is_ios()
+  call vimproc#util#set_default(
+		\ 'g:vimproc#dll_path',
+		\ $VIM . '/Frameworks/' . s:vimproc_dll_basename,
+		\ 'g:vimproc_dll_path')
+else 
+  call vimproc#util#set_default(
+		\ 'g:vimproc#dll_path',
+		\ expand('<sfile>:p:h:h') . '/../Frameworks/' . s:vimproc_dll_basename,
+		\ 'g:vimproc_dll_path')
+endif
 unlet s:vimproc_dll_basename
 
 call vimproc#util#set_default(

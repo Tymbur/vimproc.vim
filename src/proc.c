@@ -612,35 +612,29 @@ vp_pipe_open(char *args)
         if (fd[2][0] > 0) {
             close(fd[2][0]);
         }
-#endif
         if (fd[0][0] > 0) {
-          //  if (dup2(fd[0][0], STDIN_FILENO) != STDIN_FILENO) {
-           //     goto child_error;
-           // }
-#ifndef TARGET_OS_IPHONE 
+            if (dup2(fd[0][0], STDIN_FILENO) != STDIN_FILENO) {
+                goto child_error;
+            }
             close(fd[0][0]);
-#endif
         }
         if (fd[1][1] > 0) {
-          //  if (dup2(fd[1][1], STDOUT_FILENO) != STDOUT_FILENO) {
-           //     goto child_error;
-          //  }
-#ifndef TARGET_OS_IPHONE 
+             if (dup2(fd[1][1], STDOUT_FILENO) != STDOUT_FILENO) {
+                goto child_error;
+             }
              close(fd[1][1]);
-#endif
         }
         if (fd[2][1] > 0) {
-           // if (dup2(fd[2][1], STDERR_FILENO) != STDERR_FILENO) {
-           //     goto child_error;
-         //   }
-#ifndef TARGET_OS_IPHONE 
+            if (dup2(fd[2][1], STDERR_FILENO) != STDERR_FILENO) {
+                goto child_error;
+            }
             close(fd[2][1]);
-#endif
         } else if (npipe == 2) {
-           // if (dup2(STDOUT_FILENO, STDERR_FILENO) != STDERR_FILENO) {
-            //    goto child_error;
-          //  }
+            if (dup2(STDOUT_FILENO, STDERR_FILENO) != STDERR_FILENO) {
+               goto child_error;
+            }
         }
+#endif
         {
 #ifndef TIOCNOTTY
             setsid();
@@ -657,6 +651,7 @@ vp_pipe_open(char *args)
 #endif
         }
 
+#ifdef TARGET_OS_IPHONE
         argv = malloc(sizeof(char *) * (argc+1));
         if (argv == NULL) {
             goto child_error;
@@ -686,8 +681,11 @@ vp_pipe_open(char *args)
         if (fd[2][1] > 0) param->fd_err = fd[2][1]; 
         else param->fd_err = fd[1][1];
         pthread_create(&_tid, NULL, start_command, param);
+#else 
+        execv(argv[0], argv);
         /* error */
-        // goto child_error;
+        goto child_error;
+#endif
     } // else 
     {
 #ifndef TARGET_OS_IPHONE 
