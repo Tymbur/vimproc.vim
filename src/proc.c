@@ -81,6 +81,8 @@
 #if defined __ANDROID__
 # define ctermid(x) "/dev/tty"
 #endif
+#include "TargetConditionals.h" 
+#include "ios_error.h"
 
 #include "vimstack.c"
 
@@ -505,6 +507,42 @@ close_allfd(int fds[3][2])
     }
 }
 
+
+typedef struct _commandParameters {
+    char** argv;
+    char** argv_ref;
+    int fd_in; 
+    int fd_out; 
+    int fd_err; 
+    int argc;
+} commandParameters;
+
+
+static void cleanup_function(void* parameters) {
+    // This function is called when pthread_exit() or ios_kill() is called
+    commandParameters *p = (commandParameters *) parameters;
+    // release parameters:
+    for (int i = 0; i < p->argc; i++) free(p->argv_ref[i]);
+    free(p->argv_ref);
+    free(p->argv);
+    free(parameters); // This was malloc'ed in vp_pipe_open
+}
+
+
+static void start_command(void* parameters) {
+    commandParameters* p = (commandParameters*) parameters;
+    dup2(p->fd_in, STDIN_FILENO);
+    dup2(p->fd_out, STDOUT_FILENO);
+    dup2(p->fd_err, STDERR_FILENO);
+    // Because some commands change argv, keep a local copy for release.
+    p->argv_ref = (char **)malloc(sizeof(char*) * (p->argc + 1));
+    for (int i = 0; i < p->argc; i++) p->argv_ref[i] = p->argv[i];
+    pthread_cleanup_push(cleanup_function, parameters);
+    ios_execv(p->argv[0], p->argv); 
+    pthread_cleanup_pop(1);
+}
+
+
 const char *
 vp_pipe_open(char *args)
 {
@@ -551,10 +589,12 @@ vp_pipe_open(char *args)
         }
     }
 
-    pid = fork();
+    pid = 1; // fork();
     if (pid < 0) {
         VP_GOTO_ERROR("fork() error: %s");
-    } else if (pid == 0) {
+    } else if (pid == 1) {
+        // TODO: start child in separate thread, communicating with this one
+        // call dup2 in new thread (?)
         /* child */
         char **argv;
         int i;
@@ -562,6 +602,7 @@ vp_pipe_open(char *args)
         /* Set process group. */
         setpgid(0, 0);
 
+#ifndef TARGET_OS_IPHONE
         if (fd[0][1] > 0) {
             close(fd[0][1]);
         }
@@ -578,10 +619,10 @@ vp_pipe_open(char *args)
             close(fd[0][0]);
         }
         if (fd[1][1] > 0) {
-            if (dup2(fd[1][1], STDOUT_FILENO) != STDOUT_FILENO) {
+             if (dup2(fd[1][1], STDOUT_FILENO) != STDOUT_FILENO) {
                 goto child_error;
-            }
-            close(fd[1][1]);
+             }
+             close(fd[1][1]);
         }
         if (fd[2][1] > 0) {
             if (dup2(fd[2][1], STDERR_FILENO) != STDERR_FILENO) {
@@ -590,10 +631,10 @@ vp_pipe_open(char *args)
             close(fd[2][1]);
         } else if (npipe == 2) {
             if (dup2(STDOUT_FILENO, STDERR_FILENO) != STDERR_FILENO) {
-                goto child_error;
+               goto child_error;
             }
         }
-
+#endif
         {
 #ifndef TIOCNOTTY
             setsid();
@@ -610,6 +651,7 @@ vp_pipe_open(char *args)
 #endif
         }
 
+#ifdef TARGET_OS_IPHONE
         argv = malloc(sizeof(char *) * (argc+1));
         if (argv == NULL) {
             goto child_error;
@@ -622,10 +664,31 @@ vp_pipe_open(char *args)
         }
         argv[argc] = NULL;
 
+        // Currently, this line waits until command returns
+        // execv(argv[0], argv);
+        // This version runs the command in the background, so we can see the
+        // results in real-time:
+        commandParameters *param = (commandParameters*) malloc(sizeof(commandParameters));
+        pthread_t _tid;
+        param->argc = argc; 
+        param->argv = malloc(sizeof(char *) * (argc+1));
+        for (i = 0; i < argc ; i++) {
+            param->argv[i] = strdup(argv[i]); 
+        }
+        param->argv[argc] = NULL; 
+        param->fd_in = fd[0][0]; 
+        param->fd_out = fd[1][1]; 
+        if (fd[2][1] > 0) param->fd_err = fd[2][1]; 
+        else param->fd_err = fd[1][1];
+        pthread_create(&_tid, NULL, start_command, param);
+#else 
         execv(argv[0], argv);
         /* error */
         goto child_error;
-    } else {
+#endif
+    } // else 
+    {
+#ifndef TARGET_OS_IPHONE 
         /* parent */
         if (fd[0][0] > 0) {
             close(fd[0][0]);
@@ -636,7 +699,7 @@ vp_pipe_open(char *args)
         if (fd[2][1] > 0) {
             close(fd[2][1]);
         }
-
+#endif
         vp_stack_push_num(&_result, "%d", pid);
         vp_stack_push_num(&_result, "%d", fd[0][1]);
         vp_stack_push_num(&_result, "%d", fd[1][0]);
@@ -888,6 +951,10 @@ vp_kill(char *args)
     VP_RETURN_IF_FAIL(vp_stack_pop_num(&stack, "%d", &pid));
     VP_RETURN_IF_FAIL(vp_stack_pop_num(&stack, "%d", &sig));
 
+#ifdef TARGET_OS_IPHONE
+    ios_kill(); 
+    ret = 0;
+#else
     ret = kill(pid, sig);
     if (ret < 0)
         return vp_stack_return_error(&_result, "kill() error: %s",
@@ -900,7 +967,7 @@ vp_kill(char *args)
             kill(-pgid, sig);
         }
     }
-
+#endif
     vp_stack_push_num(&_result, "%d", ret);
     return vp_stack_return(&_result);
 }

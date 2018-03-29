@@ -1,0 +1,4 @@
+clang -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS11.2.sdk -O2 -W -Wall -Wno-unused -Wno-unused-parameter -I . src/proc.c -fembed-bitcode -fPIC -dynamiclib -o vimproc_ios.dylib -F Frameworks -framework ios_system
+
+install_name_tool -id vimproc_ios.dylib vimproc_ios.dylib
+install_name_tool -id @executable_path/Frameworks/vimproc_ios.dylib vimproc_ios.dylib
