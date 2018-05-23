@@ -27,9 +27,10 @@ let s:save_cpo = &cpo
 set cpo&vim
 " }}}
 
+let s:is_ios = has('ios')
 let s:is_windows = has('win32')
 let s:is_cygwin = has('win32unix')
-let s:is_mac = !s:is_windows && !s:is_cygwin
+let s:is_mac = !s:is_ios && !s:is_windows && !s:is_cygwin
       \ && (has('mac') || has('macunix') || has('gui_macvim') ||
       \   (!isdirectory('/proc') && executable('sw_vers')))
 
@@ -76,6 +77,9 @@ function! vimproc#util#expand(path) abort "{{{
 endfunction"}}}
 function! vimproc#util#is_windows() abort "{{{
   return s:is_windows
+endfunction"}}}
+function! vimproc#util#is_ios() abort "{{{
+return s:is_ios
 endfunction"}}}
 function! vimproc#util#is_mac() abort "{{{
   return s:is_mac
