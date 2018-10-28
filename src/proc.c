@@ -994,7 +994,11 @@ vp_waitpid(char *args)
         /* Kill by the process group. */
         pgid = getpgid(pid);
         if (pgid > 0) {
+#ifdef TARGET_OS_IPHONE
+            ios_kill(); 
+#else
             kill(-pgid, 15);
+#endif
         }
 
         vp_stack_push_str(&_result, "exit");
